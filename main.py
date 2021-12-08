@@ -2,8 +2,6 @@ import pygame
 import random
 import math
 
-from pygame.sprite import DirtySprite
-
 pygame.init()
 
 # fps
@@ -17,17 +15,22 @@ font = pygame.font.Font('freesansbold.ttf', 16)
 textX = 10
 textY = 10
 
+# True - facing right
+# False - facing left
+pov = True
+
 # file paths
 IconPath = 'assets/mario.png'
-SpriteImagePath = 'assets/firemario.png'
+SpriteRImagePath = 'assets/firemario_R.png'
+SpriteLImagePath = 'assets/firemario_L.png'
 Enemy1ImagePath = 'assets/goomba.png'
 MusicPath = 'assets/mario_soundtrack.mp3'
 ProjectilePath = 'assets/fireball.png'
 ProjectileSoundEffectPath = 'assets/fireball.mp3'
 BackgroundPath = 'assets/grass_background.png'
 ShootingSoundEffectPath = 'assets/fireball.mp3'
-
-shootingSound = pygame.mixer.Sound(ShootingSoundEffectPath)
+GameOverSoundEffectPath = 'assets/game_over_sound_effect.mp3'
+GameCompleteSoundEffectPath = 'assets/game_complete_sound_effect.mp3'
 
 iconImg = pygame.image.load(IconPath)
 
@@ -40,19 +43,21 @@ pygame.display.set_icon(iconImg)
 bgpic = pygame.image.load(BackgroundPath)
 background = pygame.transform.scale(bgpic, (1000, 800))
 
-# plays music
-pygame.mixer.music.load(MusicPath)
-pygame.mixer.music.play(-1)
-pygame.mixer.music.set_volume(0.1)
-
-# main sprite
-# class Sprite(pygame.sprite.Sprite):
-#	def __init__(self,picture_path):
-#		pygame.image.load(r(SpriteImagePath))
+#  music
+bgmusic = pygame.mixer.Sound(MusicPath)
+bgmusic.play(-1)
+bgmusic.set_volume(0.1)
+shootingSound = pygame.mixer.Sound(ShootingSoundEffectPath)
+game_over_music = pygame.mixer.Sound(GameOverSoundEffectPath)
+game_over_music.set_volume(0.1)
+game_complete_music = pygame.mixer.Sound(GameCompleteSoundEffectPath)
+game_complete_music.set_volume(0.1)
 
 # player dimensions
-SpriteImage = pygame.image.load(SpriteImagePath)
-playerImg = pygame.transform.scale(SpriteImage, (64, 64))
+SpriteRImage = pygame.image.load(SpriteRImagePath)
+playerRImg = pygame.transform.scale(SpriteRImage, (64, 64))
+SpriteLImage = pygame.image.load(SpriteLImagePath)
+playerLImg = pygame.transform.scale(SpriteLImage, (64, 64))
 playerX = 370
 playerY = 480
 playerX_change = 0
@@ -84,14 +89,19 @@ projX_change = -10
 projY_change = 0
 proj_state = True
 
+
 def show_score(x, y):
     scorerender = font.render('Score:'+str(score), True, (255, 255, 255))
     screen.blit(scorerender, (x, y))
 
 # drawing player sprite
 
+
 def player(x, y):
-    screen.blit(playerImg, (x, y))
+    if pov:
+        screen.blit(playerRImg, (x, y))
+    else:
+        screen.blit(playerLImg, (x, y))
 
 # drawing first enemy sprite
 
@@ -110,14 +120,18 @@ def fire_projectile(x, y):
 # detect collision
 
 
-def isCollision(enemy1X, enemy1Y, projX, projY):
-    distance = math.sqrt((math.pow(enemy1X-projX, 2)) +
-                         (math.pow(enemy1Y-projY, 2)))
+def isCollision(x1, y1, x2, y2):
+    distance = math.sqrt((math.pow(x1-x2, 2)) +
+                         (math.pow(y1-y2, 2)))
     if distance < 27:
         return True
     else:
         return False
 
+
+def pov_of_player():
+    if pov:
+        print('dog')
 
 def logger():
     print(projX, ",", projY)
@@ -137,8 +151,12 @@ while running:
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_LEFT:
                 playerX_change = -5
+                projX_change = 10
+                pov = False
             if event.key == pygame.K_RIGHT:
                 playerX_change = 5
+                projX_change = -10
+                pov = True
             if event.key == pygame.K_UP:
                 playerY_change = -5
             if event.key == pygame.K_DOWN:
@@ -182,24 +200,41 @@ while running:
             enemy1Y_change[i] = 2
         elif enemy1Y[i] >= 736:
             enemy1Y_change[i] = -2
-        collision = isCollision(enemy1X[i], enemy1Y[i], projX, projY)
-        if collision:
+
+        projectileCollision = isCollision(enemy1X[i], enemy1Y[i], projX, projY)
+        if projectileCollision:
             projX = playerX
             projY = playerY
             proj_state = True
             score += 1
-            enemy1X[i] =5000
+            enemy1X[i] = 5000
             #enemy1Y[i] = random.randint(100, 736)
         enemy1(enemy1X[i], enemy1Y[i], i)
-
+        playerCollision = isCollision(enemy1X[i], enemy1Y[i], playerX, playerY)
+        if playerCollision:
+            playerX = 10000
+            playerY = 10000
+            game_over_music.play()
+            bgmusic.stop()
+            # wait for 8 seconds for end of game theme to complete
+            pygame.time.wait(7000)
+            running = False  # end program
     # projectile movement
-    if projX >= 1000:
+    if projX >= 1000 or projX<0:
         projX = 450
         proj_state = True
 
     if proj_state == False:
         fire_projectile(projX, projY)
         projX -= projX_change
+
+    # game complete sequence
+    if score == 10:
+        game_complete_music.play()
+        bgmusic.stop()
+        # wait for 8 seconds for end of game theme to complete
+        pygame.time.wait(8000)
+        running = False  # end program
 
     # collision
 
